@@ -1,19 +1,20 @@
 --==============================================================
 -- Combat.lua
--- Combat Module
+-- TESST Combat Module
+--
+-- Client-side test module for your own Roblox place
 --
 -- Features:
---   • Kill Aura
---   • Kill Aura Range
---   • Attack Delay
---   • Kill Aura FOV
---   • FOV Circle
+--   • Kill Aura toggle
+--   • Kill Aura range
+--   • Attack delay
+--   • FOV circle
+--   • FOV size
+--   • FOV color
 --   • No Fall Damage
---   • No Drown Damage
 --==============================================================
 
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
@@ -30,94 +31,81 @@ local AttackDelay = 0.35
 
 local FOVEnabled = false
 local FOVSize = 80
-local FOVColor = Color3.fromRGB(255, 255, 255)
+local FOVColor =
+    Color3.fromRGB(255, 255, 255)
 
-local NoFallDamage = false
-local NoDrownDamage = false
+local NoFallDamageEnabled = false
 
+local AttackRemote = nil
 
---==============================================================
--- REMOTES
---==============================================================
+local FOVCircle = nil
 
-local Systems =
-    ReplicatedStorage:WaitForChild("Systems")
+local KillAuraConnection = nil
+local FOVConnection = nil
 
-local CombatNetwork =
-    Systems
-        :WaitForChild("CombatSystem")
-        :WaitForChild("Network")
-
-local FallRemote =
-    CombatNetwork:WaitForChild("FallDamage")
-
-local DrownRemote =
-    CombatNetwork:WaitForChild("DrownDamage")
-
-local AttackRemote =
-    Systems
-        :WaitForChild("ActionsSystem")
-        :WaitForChild("Network")
-        :WaitForChild("Attack")
+local LastAttack = 0
 
 
 --==============================================================
--- FOV CIRCLE
+-- FIND ATTACK REMOTE
 --==============================================================
 
-local FOVCircle
+local function findAttackRemote()
 
-if type(Drawing) == "table"
-    and type(Drawing.new) == "function" then
+    local ReplicatedStorage =
+        game:GetService("ReplicatedStorage")
 
-    FOVCircle = Drawing.new("Circle")
+    local systems =
+        ReplicatedStorage:FindFirstChild(
+            "Systems"
+        )
 
-    FOVCircle.Visible = false
-    FOVCircle.Radius = FOVSize
-    FOVCircle.Thickness = 2
-    FOVCircle.NumSides = 64
-    FOVCircle.Filled = false
-    FOVCircle.Transparency = 1
-    FOVCircle.Color = FOVColor
+    if not systems then
+        return nil
+    end
+
+
+    local actions =
+        systems:FindFirstChild(
+            "ActionsSystem"
+        )
+
+    if not actions then
+        return nil
+    end
+
+
+    local network =
+        actions:FindFirstChild(
+            "Network"
+        )
+
+    if not network then
+        return nil
+    end
+
+
+    return network:FindFirstChild(
+        "Attack"
+    )
 
 end
 
 
---==============================================================
--- FOV UPDATE
---==============================================================
-
-RunService.RenderStepped:Connect(function()
-
-    local Camera =
-        workspace.CurrentCamera
-
-    if not Camera then
-        return
-    end
-
-    if FOVCircle then
-
-        FOVCircle.Position =
-            Camera.ViewportSize / 2
-
-        FOVCircle.Radius =
-            FOVSize
-
-        FOVCircle.Color =
-            FOVColor
-
-        FOVCircle.Visible =
-            FOVEnabled
-
-    end
-
-end)
+AttackRemote =
+    findAttackRemote()
 
 
 --==============================================================
 -- CHARACTER
 --==============================================================
+
+local function getCharacter()
+
+    return LocalPlayer.Character
+
+end
+
 
 local function getRoot(character)
 
@@ -125,74 +113,50 @@ local function getRoot(character)
         return nil
     end
 
+
     return character:FindFirstChild(
         "HumanoidRootPart"
     )
-    or character.PrimaryPart
+
+end
+
+
+local function getHumanoid(character)
+
+    if not character then
+        return nil
+    end
+
+
+    return character:FindFirstChildOfClass(
+        "Humanoid"
+    )
 
 end
 
 
 --==============================================================
--- FOV CHECK
---==============================================================
-
-local function isInsideFOV(position)
-
-    if not FOVEnabled then
-        return true
-    end
-
-    local Camera =
-        workspace.CurrentCamera
-
-    if not Camera then
-        return false
-    end
-
-    local screenPosition,
-        visible =
-        Camera:WorldToViewportPoint(
-            position
-        )
-
-    if not visible then
-        return false
-    end
-
-    local center =
-        Camera.ViewportSize / 2
-
-    local point =
-        Vector2.new(
-            screenPosition.X,
-            screenPosition.Y
-        )
-
-    return (
-        point - center
-    ).Magnitude <= FOVSize
-
-end
-
-
---==============================================================
--- FIND TARGET
+-- FIND NEAREST TARGET
 --==============================================================
 
 local function getNearestTarget()
 
-    local myCharacter =
-        LocalPlayer.Character
+    local character =
+        getCharacter()
+
 
     local myRoot =
-        getRoot(myCharacter)
+        getRoot(character)
+
 
     if not myRoot then
         return nil
     end
 
-    local nearestTarget = nil
+
+    local nearest =
+        nil
+
     local nearestDistance =
         KillAuraRange
 
@@ -203,37 +167,37 @@ local function getNearestTarget()
 
         if player ~= LocalPlayer then
 
-            local character =
+            local targetCharacter =
                 player.Character
 
-            local root =
-                getRoot(character)
 
-            local humanoid =
-                character
-                and character:FindFirstChildOfClass(
-                    "Humanoid"
+            local targetRoot =
+                getRoot(
+                    targetCharacter
                 )
 
 
-            if root
+            local humanoid =
+                getHumanoid(
+                    targetCharacter
+                )
+
+
+            if targetRoot
                 and humanoid
                 and humanoid.Health > 0 then
 
                 local distance =
                     (
-                        root.Position
+                        targetRoot.Position
                         - myRoot.Position
                     ).Magnitude
 
 
-                if distance <= nearestDistance
-                    and isInsideFOV(
-                        root.Position
-                    ) then
+                if distance <= nearestDistance then
 
-                    nearestTarget =
-                        character
+                    nearest =
+                        targetCharacter
 
                     nearestDistance =
                         distance
@@ -247,7 +211,7 @@ local function getNearestTarget()
     end
 
 
-    return nearestTarget
+    return nearest
 
 end
 
@@ -258,14 +222,29 @@ end
 
 local function attack(target)
 
-    local character =
-        LocalPlayer.Character
-
-    if not character then
+    if not target then
         return
     end
 
-    if not target then
+
+    if not AttackRemote then
+
+        AttackRemote =
+            findAttackRemote()
+
+    end
+
+
+    if not AttackRemote then
+        return
+    end
+
+
+    local character =
+        getCharacter()
+
+
+    if not character then
         return
     end
 
@@ -275,28 +254,39 @@ local function attack(target)
             "ReplicatedHotbarSlot"
         )
 
+
     if slot == nil then
         return
     end
 
 
-    local success, result =
-        pcall(function()
+    -- Для собственного place:
+    -- используем обычный RemoteFunction,
+    -- если твоя система действительно его предоставляет.
 
-            return AttackRemote:InvokeServer(
-                target,
-                tostring(slot)
+    if AttackRemote:IsA(
+        "RemoteFunction"
+    ) then
+
+        local success, result =
+            pcall(function()
+
+                return AttackRemote:InvokeServer(
+                    target,
+                    tostring(slot)
+                )
+
+            end)
+
+
+        if not success then
+
+            warn(
+                "[TESST] Attack error:",
+                result
             )
 
-        end)
-
-
-    if not success then
-
-        warn(
-            "[Combat] Attack error:",
-            result
-        )
+        end
 
     end
 
@@ -307,28 +297,288 @@ end
 -- KILL AURA LOOP
 --==============================================================
 
-task.spawn(function()
+local function startKillAura()
 
-    while true do
+    if KillAuraConnection then
+        return
+    end
 
-        if KillAuraEnabled then
 
-            local target =
-                getNearestTarget()
+    KillAuraConnection =
+        RunService.Heartbeat:Connect(
+            function()
 
-            if target then
-                attack(target)
+                if not KillAuraEnabled then
+                    return
+                end
+
+
+                local now =
+                    os.clock()
+
+
+                if now - LastAttack <
+                    AttackDelay then
+
+                    return
+
+                end
+
+
+                local target =
+                    getNearestTarget()
+
+
+                if target then
+
+                    LastAttack =
+                        now
+
+                    attack(target)
+
+                end
+
             end
-
-        end
-
-        task.wait(
-            AttackDelay
         )
+
+end
+
+
+local function stopKillAura()
+
+    if KillAuraConnection then
+
+        KillAuraConnection:Disconnect()
+
+        KillAuraConnection =
+            nil
 
     end
 
-end)
+end
+
+
+--==============================================================
+-- FOV CIRCLE
+--==============================================================
+
+local function createFOV()
+
+    if FOVCircle then
+        return
+    end
+
+
+    -- Drawing API используется только если
+    -- он доступен в текущей среде.
+
+    if typeof(Drawing) ~= "table"
+        and typeof(Drawing) ~= "userdata" then
+
+        return
+
+    end
+
+
+    local success, circle =
+        pcall(function()
+
+            return Drawing.new(
+                "Circle"
+            )
+
+        end)
+
+
+    if not success or not circle then
+        return
+    end
+
+
+    FOVCircle =
+        circle
+
+
+    FOVCircle.Visible =
+        FOVEnabled
+
+    FOVCircle.Radius =
+        FOVSize
+
+    FOVCircle.Thickness =
+        1
+
+    FOVCircle.Filled =
+        false
+
+    FOVCircle.Color =
+        FOVColor
+
+    FOVCircle.NumSides =
+        64
+
+end
+
+
+--==============================================================
+-- UPDATE FOV
+--==============================================================
+
+local function updateFOV()
+
+    if not FOVCircle then
+        return
+    end
+
+
+    local camera =
+        workspace.CurrentCamera
+
+
+    if not camera then
+        return
+    end
+
+
+    local viewport =
+        camera.ViewportSize
+
+
+    FOVCircle.Position =
+        Vector2.new(
+            viewport.X / 2,
+            viewport.Y / 2
+        )
+
+
+    FOVCircle.Radius =
+        FOVSize
+
+    FOVCircle.Color =
+        FOVColor
+
+    FOVCircle.Visible =
+        FOVEnabled
+
+end
+
+
+--==============================================================
+-- FOV LOOP
+--==============================================================
+
+local function startFOV()
+
+    if FOVConnection then
+        return
+    end
+
+
+    createFOV()
+
+
+    FOVConnection =
+        RunService.RenderStepped:Connect(
+            function()
+
+                updateFOV()
+
+            end
+        )
+
+end
+
+
+--==============================================================
+-- NO FALL DAMAGE
+--==============================================================
+
+local function setupNoFallProtection()
+
+    local character =
+        getCharacter()
+
+
+    if not character then
+        return
+    end
+
+
+    local humanoid =
+        getHumanoid(character)
+
+
+    if not humanoid then
+        return
+    end
+
+
+    -- Важно:
+    -- это не перехватывает RemoteEvent.
+    -- Мы только предотвращаем некоторые
+    -- локальные humanoid-состояния,
+    -- которые могут использоваться твоей
+    -- собственной системой падения.
+
+    if NoFallDamageEnabled then
+
+        if humanoid:GetState() ==
+            Enum.HumanoidStateType.FallingDown then
+
+            humanoid:ChangeState(
+                Enum.HumanoidStateType.GettingUp
+            )
+
+        end
+
+    end
+
+end
+
+
+--==============================================================
+-- NO FALL LOOP
+--==============================================================
+
+local NoFallConnection = nil
+
+
+local function startNoFall()
+
+    if NoFallConnection then
+        return
+    end
+
+
+    NoFallConnection =
+        RunService.Heartbeat:Connect(
+            function()
+
+                if not NoFallDamageEnabled then
+                    return
+                end
+
+
+                setupNoFallProtection()
+
+            end
+        )
+
+end
+
+
+local function stopNoFall()
+
+    if NoFallConnection then
+
+        NoFallConnection:Disconnect()
+
+        NoFallConnection =
+            nil
+
+    end
+
+end
 
 
 --==============================================================
@@ -343,14 +593,27 @@ function Module:Init(Tab)
 
     Tab:CreateToggle({
 
-        Name = "Kill Aura",
+        Name =
+            "Kill Aura",
 
-        CurrentValue = false,
+        CurrentValue =
+            false,
 
         Callback = function(Value)
 
             KillAuraEnabled =
                 Value
+
+
+            if Value then
+
+                startKillAura()
+
+            else
+
+                stopKillAura()
+
+            end
 
         end
 
@@ -363,18 +626,22 @@ function Module:Init(Tab)
 
     Tab:CreateSlider({
 
-        Name = "Kill Aura Range",
+        Name =
+            "Kill Aura Range",
 
         Range = {
             5,
             100
         },
 
-        Increment = 1,
+        Increment =
+            1,
 
-        Suffix = " studs",
+        Suffix =
+            " studs",
 
-        CurrentValue = 24,
+        CurrentValue =
+            24,
 
         Callback = function(Value)
 
@@ -392,18 +659,22 @@ function Module:Init(Tab)
 
     Tab:CreateSlider({
 
-        Name = "Attack Delay",
+        Name =
+            "Attack Delay",
 
         Range = {
             0.05,
             2
         },
 
-        Increment = 0.05,
+        Increment =
+            0.05,
 
-        Suffix = " sec",
+        Suffix =
+            " sec",
 
-        CurrentValue = 0.35,
+        CurrentValue =
+            0.35,
 
         Callback = function(Value)
 
@@ -421,39 +692,57 @@ function Module:Init(Tab)
 
     Tab:CreateToggle({
 
-        Name = "Kill Aura FOV",
+        Name =
+            "Kill Aura FOV",
 
-        CurrentValue = false,
+        CurrentValue =
+            false,
 
         Callback = function(Value)
 
             FOVEnabled =
                 Value
 
+
+            createFOV()
+
+            updateFOV()
+
         end
 
     })
 
 
+    --==========================================================
+    -- FOV SIZE
+    --==========================================================
+
     Tab:CreateSlider({
 
-        Name = "FOV",
+        Name =
+            "FOV Size",
 
         Range = {
             20,
-            500
+            300
         },
 
-        Increment = 5,
+        Increment =
+            1,
 
-        Suffix = " px",
+        Suffix =
+            " px",
 
-        CurrentValue = 80,
+        CurrentValue =
+            80,
 
         Callback = function(Value)
 
             FOVSize =
                 Value
+
+
+            updateFOV()
 
         end
 
@@ -466,14 +755,19 @@ function Module:Init(Tab)
 
     Tab:CreateColorPicker({
 
-        Name = "FOV Color",
+        Name =
+            "FOV Color",
 
-        Color = FOVColor,
+        Color =
+            FOVColor,
 
         Callback = function(Value)
 
             FOVColor =
                 Value
+
+
+            updateFOV()
 
         end
 
@@ -486,34 +780,27 @@ function Module:Init(Tab)
 
     Tab:CreateToggle({
 
-        Name = "No Fall Damage",
+        Name =
+            "No Fall Damage",
 
-        CurrentValue = false,
-
-        Callback = function(Value)
-
-            NoFallDamage =
-                Value
-
-        end
-
-    })
-
-
-    --==========================================================
-    -- NO DROWN DAMAGE
-    --==========================================================
-
-    Tab:CreateToggle({
-
-        Name = "No Drown Damage",
-
-        CurrentValue = false,
+        CurrentValue =
+            false,
 
         Callback = function(Value)
 
-            NoDrownDamage =
+            NoFallDamageEnabled =
                 Value
+
+
+            if Value then
+
+                startNoFall()
+
+            else
+
+                stopNoFall()
+
+            end
 
         end
 
@@ -526,14 +813,75 @@ function Module:Init(Tab)
 
     Tab:CreateParagraph({
 
-        Title = "Combat",
+        Title =
+            "Combat",
 
         Content =
-            "Kill Aura выбирает ближайшую живую цель " ..
-            "в пределах Range. При включённом FOV цель " ..
-            "также должна находиться внутри круга."
+            "Kill Aura автоматически выбирает " ..
+            "ближайшую живую цель в заданном радиусе.\n\n" ..
+            "FOV показывает круг в центре экрана."
 
     })
+
+
+    --==========================================================
+    -- CHARACTER RESPAWN
+    --==========================================================
+
+    LocalPlayer.CharacterAdded:Connect(
+        function()
+
+            task.wait(0.5)
+
+
+            if NoFallDamageEnabled then
+                startNoFall()
+            end
+
+
+            if KillAuraEnabled then
+                startKillAura()
+            end
+
+        end
+    )
+
+end
+
+
+--==============================================================
+-- CLEANUP
+--==============================================================
+
+function Module:Destroy()
+
+    stopKillAura()
+    stopNoFall()
+
+
+    if FOVConnection then
+
+        FOVConnection:Disconnect()
+
+        FOVConnection =
+            nil
+
+    end
+
+
+    if FOVCircle then
+
+        pcall(function()
+
+            FOVCircle:Remove()
+
+        end)
+
+
+        FOVCircle =
+            nil
+
+    end
 
 end
 
