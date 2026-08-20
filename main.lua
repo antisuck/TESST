@@ -1,10 +1,11 @@
 --==============================================================
 -- TESST
--- Main Loader
+-- main.lua
 --==============================================================
 
 local BASE =
     "https://raw.githubusercontent.com/antisuck/TESST/main/"
+
 
 --==============================================================
 -- RAYFIELD
@@ -16,6 +17,7 @@ local Rayfield = loadstring(
     )
 )()
 
+
 --==============================================================
 -- WINDOW
 --==============================================================
@@ -26,7 +28,7 @@ local Window = Rayfield:CreateWindow({
 
     LoadingTitle = "TESST",
 
-    LoadingSubtitle = "Loading...",
+    LoadingSubtitle = "Loading modules...",
 
     ConfigurationSaving = {
         Enabled = false
@@ -40,6 +42,7 @@ local Window = Rayfield:CreateWindow({
 
 })
 
+
 --==============================================================
 -- TABS
 --==============================================================
@@ -47,75 +50,107 @@ local Window = Rayfield:CreateWindow({
 local CombatTab =
     Window:CreateTab("Combat")
 
+
 local VisualsTab =
     Window:CreateTab("Visuals")
+
 
 local MiscTab =
     Window:CreateTab("Misc")
 
+
 local CursorTab =
     Window:CreateTab("Custom Cursor")
+
 
 local SavedCursorTab =
     Window:CreateTab("Saved Cursors")
 
+
 local ConfigTab =
     Window:CreateTab("Config")
+
 
 --==============================================================
 -- MODULE LOADER
 --==============================================================
 
+local LoadedModules = {}
+
+
 local function LoadModule(fileName)
 
-    local success, module = pcall(function()
+    local success, result =
+        pcall(function()
 
-        local source = game:HttpGet(
-            BASE .. fileName
-        )
+            local source =
+                game:HttpGet(
+                    BASE .. fileName
+                )
 
-        local loader = loadstring(source)
 
-        if not loader then
-            error("loadstring failed")
-        end
+            local func =
+                loadstring(source)
 
-        return loader()
 
-    end)
+            if not func then
+
+                error(
+                    "loadstring failed"
+                )
+
+            end
+
+
+            return func()
+
+        end)
+
 
     if not success then
 
         warn(
             "[TESST] Failed to load " ..
-            fileName .. ": " ..
-            tostring(module)
+            fileName
         )
+
+        warn(result)
+
 
         Rayfield:Notify({
 
-            Title = "Module Error",
+            Title =
+                "Module Error",
 
             Content =
                 fileName ..
-                " не удалось загрузить.",
+                " не загрузился.",
 
-            Duration = 4
+            Duration =
+                4
 
         })
+
 
         return nil
 
     end
+
 
     print(
         "[TESST] Loaded: " ..
         fileName
     )
 
-    return module
+
+    LoadedModules[fileName] =
+        result
+
+
+    return result
 
 end
+
 
 --==============================================================
 -- LOAD MODULES
@@ -124,17 +159,145 @@ end
 local ESP =
     LoadModule("ESP.lua")
 
+
 local Combat =
     LoadModule("Combat.lua")
+
 
 local Misc =
     LoadModule("Misc.lua")
 
+
 local Cursor =
     LoadModule("Cursor.lua")
 
+
 local Config =
     LoadModule("Config.lua")
+
+
+--==============================================================
+-- INIT ESP
+--==============================================================
+
+if ESP
+    and type(ESP.Init) == "function" then
+
+    local success, errorMessage =
+        pcall(function()
+
+            ESP:Init(
+                VisualsTab
+            )
+
+        end)
+
+
+    if not success then
+
+        warn(
+            "[TESST] ESP Init Error:",
+            errorMessage
+        )
+
+    end
+
+end
+
+
+--==============================================================
+-- INIT COMBAT
+--==============================================================
+
+if Combat
+    and type(Combat.Init) == "function" then
+
+    local success, errorMessage =
+        pcall(function()
+
+            Combat:Init(
+                CombatTab
+            )
+
+        end)
+
+
+    if not success then
+
+        warn(
+            "[TESST] Combat Init Error:",
+            errorMessage
+        )
+
+    end
+
+end
+
+
+--==============================================================
+-- INIT MISC
+--==============================================================
+
+if Misc
+    and type(Misc.Init) == "function" then
+
+    local success, errorMessage =
+        pcall(function()
+
+            Misc:Init(
+                MiscTab
+            )
+
+        end)
+
+
+    if not success then
+
+        warn(
+            "[TESST] Misc Init Error:",
+            errorMessage
+
+        )
+
+    end
+
+end
+
+
+--==============================================================
+-- INIT CURSOR
+--==============================================================
+
+if Cursor
+    and type(Cursor.Init) == "function" then
+
+    local success, errorMessage =
+        pcall(function()
+
+            Cursor:Init(
+
+                CursorTab,
+
+                SavedCursorTab,
+
+                Rayfield
+
+            )
+
+        end)
+
+
+    if not success then
+
+        warn(
+            "[TESST] Cursor Init Error:",
+            errorMessage
+        )
+
+    end
+
+end
+
 
 --==============================================================
 -- SETTINGS
@@ -144,31 +307,30 @@ local Settings = {
 
     ESP = {
 
-        Enabled = false,
+        BoxEnabled = false,
 
-        Box = false,
+        NameEnabled = true,
 
-        Name = true,
-
-        Tracers = false,
+        TracersEnabled = false,
 
         Color = {
             r = 1,
-            g = 0,
-            b = 0
+            g = 0.27,
+            b = 0.27
         }
 
     },
 
+
     Combat = {
 
-        KillAura = false,
+        KillAuraEnabled = false,
 
         KillAuraRange = 24,
 
         AttackDelay = 0.35,
 
-        FOV = false,
+        FOVEnabled = false,
 
         FOVSize = 80,
 
@@ -178,21 +340,21 @@ local Settings = {
             b = 1
         },
 
-        NoFallDamage = false,
-
-        NoDrownDamage = false
+        NoFallDamage = false
 
     },
 
+
     Misc = {
 
-        Fly = false,
+        FlyEnabled = false,
 
         FlySpeed = 50,
 
         JumpPower = 50
 
     },
+
 
     Cursor = {
 
@@ -206,8 +368,9 @@ local Settings = {
 
 }
 
+
 --==============================================================
--- APPLY CONFIG
+-- APPLY SETTINGS
 --==============================================================
 
 local function ApplySettings(data)
@@ -215,6 +378,7 @@ local function ApplySettings(data)
     if type(data) ~= "table" then
         return
     end
+
 
     for category, values in pairs(data) do
 
@@ -232,125 +396,89 @@ local function ApplySettings(data)
 
     end
 
-end
 
---==============================================================
--- INIT ESP
---==============================================================
+    --==========================================================
+    -- APPLY ESP
+    --==========================================================
 
-if ESP and ESP.Init then
+    if ESP
+        and type(ESP.SetSettings) == "function" then
 
-    local success, err =
         pcall(function()
 
-            ESP:Init(
-                VisualsTab
+            ESP:SetSettings(
+                Settings.ESP
             )
 
         end)
 
-    if not success then
+    end
 
-        warn(
-            "[TESST] ESP error:",
-            err
-        )
+
+    --==========================================================
+    -- APPLY COMBAT
+    --==========================================================
+
+    if Combat
+        and type(Combat.SetSettings) == "function" then
+
+        pcall(function()
+
+            Combat:SetSettings(
+                Settings.Combat
+            )
+
+        end)
+
+    end
+
+
+    --==========================================================
+    -- APPLY MISC
+    --==========================================================
+
+    if Misc
+        and type(Misc.SetSettings) == "function" then
+
+        pcall(function()
+
+            Misc:SetSettings(
+                Settings.Misc
+            )
+
+        end)
+
+    end
+
+
+    --==========================================================
+    -- APPLY CURSOR
+    --==========================================================
+
+    if Cursor
+        and type(Cursor.SetSettings) == "function" then
+
+        pcall(function()
+
+            Cursor:SetSettings(
+                Settings.Cursor
+            )
+
+        end)
 
     end
 
 end
 
---==============================================================
--- INIT COMBAT
---==============================================================
-
-if Combat and Combat.Init then
-
-    local success, err =
-        pcall(function()
-
-            Combat:Init(
-                CombatTab
-            )
-
-        end)
-
-    if not success then
-
-        warn(
-            "[TESST] Combat error:",
-            err
-        )
-
-    end
-
-end
-
---==============================================================
--- INIT MISC
---==============================================================
-
-if Misc and Misc.Init then
-
-    local success, err =
-        pcall(function()
-
-            Misc:Init(
-                MiscTab
-            )
-
-        end)
-
-    if not success then
-
-        warn(
-            "[TESST] Misc error:",
-            err
-        )
-
-    end
-
-end
-
---==============================================================
--- INIT CURSOR
---==============================================================
-
-if Cursor and Cursor.Init then
-
-    local success, err =
-        pcall(function()
-
-            Cursor:Init(
-
-                CursorTab,
-
-                SavedCursorTab,
-
-                Rayfield
-
-            )
-
-        end)
-
-    if not success then
-
-        warn(
-            "[TESST] Cursor error:",
-            err
-        )
-
-    end
-
-end
 
 --==============================================================
 -- INIT CONFIG
 --==============================================================
 
-if Config and Config.Init then
+if Config
+    and type(Config.Init) == "function" then
 
-    local success, err =
+    local success, errorMessage =
         pcall(function()
 
             Config:Init(
@@ -367,45 +495,88 @@ if Config and Config.Init then
 
         end)
 
+
     if not success then
 
         warn(
-            "[TESST] Config error:",
-            err
+            "[TESST] Config Init Error:",
+            errorMessage
         )
 
     end
 
 end
 
+
 --==============================================================
--- INFO
+-- CONFIG INFO
 --==============================================================
 
 ConfigTab:CreateParagraph({
 
-    Title = "TESST",
+    Title =
+        "TESST Config",
 
     Content =
-        "Модули загружены из GitHub.\n\n" ..
-        "Configs сохраняются локально в JSON."
+        "Настройки сохраняются локально.\n\n" ..
+        "ESP, Combat, Misc и Cursor используют " ..
+        "отдельные модули."
 
 })
 
+
 --==============================================================
--- READY
+-- STATUS
+--==============================================================
+
+local loadedCount = 0
+
+
+for _, module in pairs(
+    LoadedModules
+) do
+
+    if module then
+        loadedCount += 1
+    end
+
+end
+
+
+--==============================================================
+-- NOTIFICATION
 --==============================================================
 
 Rayfield:Notify({
 
-    Title = "TESST",
+    Title =
+        "TESST",
 
-    Content = "Меню успешно загружено.",
+    Content =
+        "Загружено модулей: "
+        .. tostring(loadedCount)
+        .. "/5",
 
-    Duration = 3
+    Duration =
+        4
 
 })
 
+
 print(
-    "[TESST] Loaded successfully."
+    "========================================"
+)
+
+print(
+    "[TESST] Main loaded"
+)
+
+print(
+    "[TESST] Modules loaded: "
+    .. tostring(loadedCount)
+    .. "/5"
+)
+
+print(
+    "========================================"
 )
