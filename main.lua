@@ -1,4 +1,4 @@
-local BASE = "https://raw.githubusercontent.com/antisuck/TESTT/main/"
+local BASE = "https://raw.githubusercontent.com/antisuck/TESST/main/"
 
 local ESP = loadstring(game:HttpGet(
     BASE .. "ESP.lua"
